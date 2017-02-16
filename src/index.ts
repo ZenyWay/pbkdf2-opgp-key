@@ -14,7 +14,7 @@
 ;
 import { isString, isFunction } from './utils'
 import {
-  Pbkdf2Sha512Factory, Pbkdf2Sha512Config, Pbkdf2sha512Digest, Pbkdf2sha512DigestSpec
+  Pbkdf2Sha512Factory, Pbkdf2Sha512Config, Pbkdf2sha512DigestSpec
 } from 'pbkdf2sha512'
 import { OpgpService, OpgpProxyKey } from 'opgp-service'
 import { __assign as assign } from 'tslib'
@@ -51,6 +51,8 @@ export interface Pbdkf2OpgpKeyConfig {
    */
   getkdf: Pbkdf2Sha512Factory
 }
+
+export { Pbkdf2Sha512Factory, Pbkdf2Sha512Config, Pbkdf2sha512DigestSpec }
 
 export interface Pbdkf2OpgpKeyFactory {
   /**
