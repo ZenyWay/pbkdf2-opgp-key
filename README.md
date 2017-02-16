@@ -38,7 +38,7 @@ const key = getPbkdf2OpgpKey({
 ```
 the files of this example are available [in this repository](./spec/example).
 
-view a [live version of this example in your browser console](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v1.0.0/spec/example/index.html),
+view a [live version of this example in your browser console](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v1.1.0/spec/example/index.html),
 or by cloning this repository and running the following commands from a terminal:
 ```bash
 npm install
@@ -59,7 +59,7 @@ Pbkdf2OpgpKey instances currently expose a single method:
 browse the API's [public type declarations](./src/index.ts#L22-L69).
 
 for a detailed specification of the API,
-[run the unit tests in your browser](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v1.0.0/spec/web/index.html).
+[run the unit tests in your browser](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v1.1.0/spec/web/index.html).
 
 # <a name="contributing"></a> CONTRIBUTING
 see the [contribution guidelines](./CONTRIBUTING.md)
