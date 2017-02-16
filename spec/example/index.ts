@@ -29,7 +29,7 @@ const getPbkdf2OpgpKey = getPbkdf2OpgpKeyFactory(opgp, {
 })
 
 debug('example:')('generate key...')
-
+debugger
 const key = getPbkdf2OpgpKey({
 	user: 'j.doe@example.com',
   passphrase: 'secret passphrase'

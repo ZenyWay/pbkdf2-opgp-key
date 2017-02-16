@@ -32,6 +32,12 @@ export interface Pbdkf2OpgpKeyConfig {
   /**
    * lock returned key when `true`.
    * otherwise unlock.
+   *
+   * note that regardless of this setting,
+   * when importing a key from an armored string
+   * it is always unlocked during the process
+   * to validate the passphrase.
+   *
    * default: false
    */
   locked: boolean
@@ -47,7 +53,14 @@ export interface Pbdkf2OpgpKeyConfig {
 }
 
 export interface Pbdkf2OpgpKeyFactory {
+  /**
+   * generate a new random Pbkdf2OpgpKey
+   */
   (creds: Credentials): Promise<Pbkdf2OpgpKey>
+  /**
+   * import a Pbkdf2OpgpKey from a PGP armor
+   */
+  (passphrase: string, armor: string): Promise<Pbkdf2OpgpKey>
 }
 
 export interface Credentials {
@@ -68,31 +81,59 @@ function (opgp: OpgpService, config?: Partial<Pbdkf2OpgpKeyConfig>) {
   if (!isValidOpgpService(opgp)) { throw new TypeError('invalid argument') }
 
   const spec = assign({}, { size: KEY_SIZE_DEFAULT }, config)
-  const getPbkdf2 = isFunction(spec.getkdf) ? spec.getkdf : require('pbkdf2sha512').default
-  const pbkdf2Spec = assign({}, spec.pbkdf2)
-  const keysize = spec.size
-  const unlocked = !spec.locked
+  spec.pbkdf2 = assign({}, spec.pbkdf2)
+  spec.getkdf = isFunction(spec.getkdf)
+  ? spec.getkdf
+  : require('pbkdf2sha512').default
 
-  return function getPbkdf2OpgpKey (creds: Credentials) {
-    return isValidCredentials(creds)
-    ? Pbkdf2OpgpKeyClass.getInstance(opgp, getPbkdf2, pbkdf2Spec, keysize, unlocked, creds)
-    : Promise.reject<Pbkdf2OpgpKey>(new TypeError('invalid argument'))
+  function getPbkdf2OpgpKey (creds: Credentials|string, armor?: string) {
+    const opgpkey = isValidCredentials(creds)
+    ? Pbkdf2OpgpKeyClass.newInstance(opgp, spec, creds)
+    : isString(creds) && isString(armor)
+      ? Pbkdf2OpgpKeyClass.fromArmor(opgp, spec, creds, armor)
+      : Promise.reject<Pbkdf2OpgpKey>(new TypeError('invalid argument'))
+
+    return wrapInstance(opgpkey)
   }
+
+  return getPbkdf2OpgpKey
+}
+
+/**
+ * revealing module pattern.
+ * hide private properties required for unlock.
+ */
+function wrapInstance (key: Promise<Pbkdf2OpgpKeyClass>): Promise<Pbkdf2OpgpKey> {
+  return key.then(key => ({
+    key: key.key,
+    pbkdf2: key.pbkdf2,
+    unlock (passphrase: string): Promise<Pbkdf2OpgpKey> {
+      return isString(passphrase)
+      ? wrapInstance(key.unlock(passphrase))
+      : Promise.reject<Pbkdf2OpgpKey>(new TypeError('invalid argument'))
+    }
+  }))
 }
 
 class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
-  static getInstance (opgp: OpgpService, getPbkdf2: Pbkdf2Sha512Factory,
-  pbkdf2spec: Pbkdf2Sha512Config, keysize: number, unlocked: boolean, creds: Credentials):
-  Promise<Pbkdf2OpgpKey> {
-    const pbkdf2 = getPbkdf2(pbkdf2spec)
-    const key = pbkdf2(creds.passphrase)
+  static newInstance (opgp: OpgpService, keyspec: Pbdkf2OpgpKeyConfig,
+  creds: Credentials): Promise<Pbkdf2OpgpKeyClass> {
+    const pbkdf2 = keyspec.getkdf(keyspec.pbkdf2)
+    return pbkdf2(creds.passphrase) // rejects with TypeError if not string
     .then(({ value, spec }) => Promise.resolve<OpgpProxyKey>(opgp.generateKey(creds.user, {
         passphrase: value,
-        size: keysize,
-        unlocked: unlocked
+        size: keyspec.size,
+        unlocked: !keyspec.locked
       }))
-      .then(key => new Pbkdf2OpgpKeyClass(getPbkdf2, opgp, key, spec)))
-    return Pbkdf2OpgpKeyClass.wrapInstance(key)
+      .then(key => new Pbkdf2OpgpKeyClass(keyspec.getkdf, opgp, key, spec)))
+  }
+
+  static fromArmor (opgp: OpgpService, keyspec: Pbdkf2OpgpKeyConfig,
+  passphrase: string, armor: string): Promise<Pbkdf2OpgpKeyClass> {
+    return Promise.resolve<OpgpProxyKey[]|OpgpProxyKey>(opgp.getKeysFromArmor(armor))
+    .then(key => Array.isArray(key)
+    ? Promise.reject<Pbkdf2OpgpKeyClass>(new Error('unsupported multiple key armor'))
+    : Pbkdf2OpgpKeyClass.fromOpgpKey(opgp, keyspec, passphrase, key))
   }
 
   unlock (passphrase: string): Promise<Pbkdf2OpgpKeyClass> {
@@ -102,20 +143,15 @@ class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
     .then(key => new Pbkdf2OpgpKeyClass(this.getPbkdf2, this.opgp, key, this.pbkdf2))
   }
 
-  /**
-   * revealing module pattern.
-   * hide private properties required for unlock.
-   */
-  private static wrapInstance (key: Promise<Pbkdf2OpgpKeyClass>): Promise<Pbkdf2OpgpKey> {
-    return key.then(key => ({
-      key: key.key,
-      pbkdf2: key.pbkdf2,
-      unlock (passphrase: string): Promise<Pbkdf2OpgpKey> {
-        return isString(passphrase)
-        ? Pbkdf2OpgpKeyClass.wrapInstance(key.unlock(passphrase))
-        : Promise.reject(new TypeError('invalid argument'))
-      }
-    }))
+  private static fromOpgpKey (opgp: OpgpService, keyspec: Pbdkf2OpgpKeyConfig,
+  passphrase: string, opgpkey: OpgpProxyKey): Promise<Pbkdf2OpgpKeyClass> {
+    const pbkdf2 = keyspec.getkdf(keyspec.pbkdf2)
+    return pbkdf2(passphrase)
+    .then(({ value, spec }) => {
+      const locked = new Pbkdf2OpgpKeyClass(keyspec.getkdf, opgp, opgpkey, spec)
+      return locked.unlock(value) // systematically unlock to validate passphrase
+      .then(unlocked => keyspec.locked ? locked : unlocked)
+    })
   }
 
   private constructor (
@@ -126,8 +162,12 @@ class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
   ) {}
 }
 
+const OPGP_SERVICE_METHODS = [
+  'generateKey', 'getKeysFromArmor', 'unlock'
+]
+
 function isValidOpgpService (val: any): val is OpgpService {
-  return !!val && [ 'generateKey', 'unlock' ].every(prop => isFunction(val[prop]))
+  return !!val && OPGP_SERVICE_METHODS.every(prop => isFunction(val[prop]))
 }
 
 function isValidCredentials (val: any): val is Credentials {

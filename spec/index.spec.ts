@@ -18,7 +18,8 @@ let mock: {
   getkdf: jasmine.Spy
   pbkdf2: jasmine.Spy
   opgp: {
-    generateKey: jasmine.Spy,
+    generateKey: jasmine.Spy
+    getKeysFromArmor: jasmine.Spy
     unlock: jasmine.Spy
   }
 }
@@ -44,12 +45,14 @@ beforeEach(() => {
   .and.returnValue(pbkdf2)
   const generateKey = jasmine.createSpy('generateKey')
   .and.returnValue(Promise.resolve(opgpkey))
+  const getKeysFromArmor = jasmine.createSpy('getKeysFromArmor')
   const unlock = jasmine.createSpy('unlock')
   mock = {
     getkdf: getkdf,
     pbkdf2: pbkdf2,
     opgp: {
       generateKey: generateKey,
+      getKeysFromArmor: getKeysFromArmor,
       unlock: unlock
     }
   }
@@ -176,10 +179,107 @@ describe('getPbkdf2OpgpKey (creds: Credentials): Promise<Pbkdf2OpgpKey>', () => 
       .then(() => setTimeout(done))
       .catch((err: any) => setTimeout(() => done.fail(err)))
     })
-    it('throws an "invalid credentials" TypeError', () => {
-      expect(errors.length). toBe(args.length)
+    it('rejects with an "invalid credentials" TypeError', () => {
+      expect(errors.length).toBe(args.length)
       errors.every((error: any) => expect(error).toEqual(jasmine.any(TypeError))
       && expect(error.message).toBe('invalid credentials'))
+    })
+  })
+})
+
+describe('getPbkdf2OpgpKey (passphrase: string, armor: string): ' +
+'Promise<Pbkdf2OpgpKey>', () => {
+  let getPbkdf2OpgpKey: any
+  beforeEach(() => {
+    getPbkdf2OpgpKey = getPbkdf2OpgpKeyFactory(mock.opgp, { getkdf: mock.getkdf })
+  })
+
+  describe('when called with a passphrase string ' +
+  'and an armored string representation of a single private key', () => {
+    let key: any
+    beforeEach((done) => {
+      mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve(opgpkey))
+      mock.opgp.unlock.and.returnValue(Promise.resolve(opgpkey))
+      getPbkdf2OpgpKey(creds.passphrase, 'armor')
+      .then((_key: any) => key = _key)
+      .then(() => setTimeout(done))
+      .catch((err: any) => setTimeout(() => done.fail(err)))
+    })
+    it('returns a Pbkdf2OpgpKey object encapsulating the extracted key: ' +
+    '{ key: OpgpProxyKey, pbkdf2: Pbkdf2Sha512Config, ' +
+    'unlock: (passphrase: string) => Promise<Pbkdf2OpgpKey>',
+    () => {
+      expect(key).toEqual({
+        key: opgpkey,
+        pbkdf2: digest.spec,
+        unlock: jasmine.any(Function)
+      })
+      expect(mock.opgp.getKeysFromArmor).toHaveBeenCalledWith('armor')
+      expect(mock.pbkdf2).toHaveBeenCalledWith(creds.passphrase)
+      expect(mock.opgp.unlock).toHaveBeenCalledWith(opgpkey, digest.value)
+    })
+  })
+
+  describe('when called with a passphrase string ' +
+  'and an armored string representation of multiple private keys', () => {
+    let error: any
+    beforeEach((done) => {
+      mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve([ opgpkey, opgpkey ]))
+
+      getPbkdf2OpgpKey(creds.passphrase, 'armor')
+      .then((res: any) => setTimeout(() => done.fail(new Error(res))))
+      .catch((err: any) => error = err)
+      .then(() => setTimeout(done))
+    })
+    it('rejects with an "unsupported multiple key armor" Error', () => {
+      expect(error).toEqual(jasmine.any(Error))
+      expect(error.message).toBe('unsupported multiple key armor')
+      expect(mock.opgp.getKeysFromArmor).toHaveBeenCalledWith('armor')
+      expect(mock.pbkdf2).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when called with an incorrect passphrase string ' +
+  'and an armored string representation of a single private key', () => {
+    let error: any
+    beforeEach((done) => {
+      mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve(opgpkey))
+      mock.opgp.unlock.and.returnValue(Promise.reject(new TypeError('boom')))
+      getPbkdf2OpgpKey(creds.passphrase, 'armor')
+      .then((err: any) => setTimeout(() => done.fail(new Error(err))))
+      .catch((err: any) => error = err)
+      .then(() => setTimeout(done))
+    })
+    it('rejects with the error thrown by the underlying OpgpService#unlock method',
+    () => {
+      expect(error).toEqual(jasmine.any(Error))
+      expect(error.message).toBe('boom')
+      expect(mock.opgp.getKeysFromArmor).toHaveBeenCalledWith('armor')
+      expect(mock.pbkdf2).toHaveBeenCalledWith(creds.passphrase)
+      expect(mock.opgp.unlock).toHaveBeenCalledWith(opgpkey, digest.value)
+    })
+  })
+
+  describe('when called with anything else', () => {
+    let args: any
+    let errors: any
+    beforeEach((done) => {
+      args = [
+        null, undefined, true, 42, () => { return 'foo' }, [ 'foo' ],
+        { foo: 'bar' }
+      ]
+      const results = args.map((arg: any) => getPbkdf2OpgpKey(arg, 'armor'))
+      .concat(args.map((arg: any) => getPbkdf2OpgpKey('passphrase', arg)))
+
+      Promise.all(results.map((result: any) => result.catch((err: any) => err)))
+      .then((errs: any) => errors = errs)
+      .then(() => setTimeout(done))
+      .catch((err: any) => setTimeout(() => done.fail(err)))
+    })
+    it('rejects with an "invalid argument" TypeError', () => {
+      expect(errors.length).toBe(2 * args.length)
+      errors.every((error: any) => expect(error).toEqual(jasmine.any(TypeError))
+      && expect(error.message).toBe('invalid argument'))
     })
   })
 })

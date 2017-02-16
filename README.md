@@ -7,6 +7,8 @@
 [opgp-service](https://www.npmjs.com/package/opgp-service) keys encrypted
 with a [pbkdf2-sha512](https://www.npmjs.com/package/pbkdf2sha512) digest.
 
+Pbkdf2OpgpKey instances encapsulate a _private_ OpgpProxyKey.
+
 # <a name="example"></a> example
 ```ts
 import getPbkdf2OpgpKeyFactory from 'pbkdf2-opgp-key'
@@ -43,9 +45,18 @@ npm install
 npm run example
 ```
 
-# <a name="api"></a> API v1.0 stable
+# <a name="api"></a> API v1.1 stable
 `ES5` and [`Typescript`](http://www.typescriptlang.org/) compatible.
 coded in `Typescript 2`, transpiled to `ES5`.
+
+secure Pbkdf2OpgpKey instances can either be randomly generated,
+or imported from an armored representation.
+the corresponding factory is instantiated with the exported builder.
+
+Pbkdf2OpgpKey instances currently expose a single method:
+`unlock  (passphrase: string): Promise<Pbkdf2OpgpKeyClass>`
+
+browse the API's [public type declarations](./src/index.ts#L22-L69).
 
 for a detailed specification of the API,
 [run the unit tests in your browser](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v1.0.0/spec/web/index.html).
