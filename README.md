@@ -39,7 +39,7 @@ const key = getPbkdf2OpgpKey({
 the files of this example are available [in this repository](./spec/example).
 
 view a [live version of this example in your browser console](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v1.1.0/spec/example/index.html),
-or by cloning this repository and running the following commands from a terminal:
+or clone this repository and run the following commands from a terminal:
 ```bash
 npm install
 npm run example
