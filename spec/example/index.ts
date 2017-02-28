@@ -22,17 +22,21 @@ const getPbkdf2OpgpKey = getPbkdf2OpgpKeyFactory(opgp, {
   // keysize: 2048, locked: false (defaults)
   pbkdf2: {
     salt: 32, // generate random 32-byte long string, encoding: base64 (default)
-    iterations: 16384, // min 8192, default 65536
+    iterations: 8192, // min 8192, default 65536
     length: 64 // min 32, max 64, default 64
     // digest is always 'sha512'
   }
 })
 
 debug('example:')('generate key...')
-debugger
-const key = getPbkdf2OpgpKey({
-	user: 'j.doe@example.com',
-  passphrase: 'secret passphrase'
-})
-.then(debug('example:key:'))
-// { key: OpgpProxyKey, pbkdf2: { salt: "...", ... }, unlock: Function }
+const key = getPbkdf2OpgpKey('j.doe@example.com', 'secret passphrase')
+key.then(debug('example:key:'))
+// { key: OpgpProxyKey, pbkdf2: { salt: "...", ... }, unlock: Function, toArmor: Function, clone: Function }
+
+const armor = key.then(key => key.toArmor())
+armor.then(debug('example:armor:'))
+// { armor: "-----BEGIN PGP PRIVATE KEY BLOCK----- ...", pbkdf2: { salt: "...", ... } }
+
+armor.then(armor => getPbkdf2OpgpKey(armor, 'secret passphrase'))
+.then(debug('example:from-armor:'))
+// { key: OpgpProxyKey, pbkdf2: { salt: "...", ... }, unlock: Function, toArmor: Function, clone: Function }

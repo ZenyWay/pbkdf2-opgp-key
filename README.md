@@ -21,31 +21,35 @@ const getPbkdf2OpgpKey = getPbkdf2OpgpKeyFactory(opgp, {
   // keysize: 2048, locked: false (defaults)
   pbkdf2: {
     salt: 32, // generate random 32-byte long string, encoding: base64 (default)
-    iterations: 16384, // min 8192, default 65536
+    iterations: 8192, // min 8192, default 65536
     length: 64 // min 32, max 64, default 64
     // digest is always 'sha512'
   }
 })
 
 debug('example:')('generate key...')
+const key = getPbkdf2OpgpKey('j.doe@example.com', 'secret passphrase')
+key.then(debug('example:key:'))
+// { key: OpgpProxyKey, pbkdf2: { salt: "...", ... }, unlock: Function, toArmor: Function, clone: Function }
 
-const key = getPbkdf2OpgpKey({
-	user: 'j.doe@example.com',
-  passphrase: 'secret passphrase'
-})
-.then(debug('example:key:'))
-// { key: OpgpProxyKey, pbkdf2: { salt: "...", ... }, unlock: Function }
+const armor = key.then(key => key.toArmor())
+armor.then(debug('example:armor:'))
+// { armor: "-----BEGIN PGP PRIVATE KEY BLOCK----- ...", pbkdf2: { salt: "...", ... } }
+
+armor.then(armor => getPbkdf2OpgpKey(armor, 'secret passphrase'))
+.then(debug('example:from-armor:'))
+// { key: OpgpProxyKey, pbkdf2: { salt: "...", ... }, unlock: Function, toArmor: Function, clone: Function }
 ```
 the files of this example are available [in this repository](./spec/example).
 
-view a [live version of this example in your browser console](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v1.1.0/spec/example/index.html),
+view a [live version of this example in your browser console](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v2.0.0/spec/example/index.html),
 or clone this repository and run the following commands from a terminal:
 ```bash
 npm install
 npm run example
 ```
 
-# <a name="api"></a> API v1.1 stable
+# <a name="api"></a> API v2.0 stable
 `ES5` and [`Typescript`](http://www.typescriptlang.org/) compatible.
 coded in `Typescript 2`, transpiled to `ES5`.
 
@@ -56,10 +60,10 @@ the corresponding factory is instantiated with the exported builder.
 Pbkdf2OpgpKey instances currently expose a single method:
 `unlock  (passphrase: string): Promise<Pbkdf2OpgpKeyClass>`
 
-browse the API's [public type declarations](./src/index.ts#L22-L69).
+browse the API's [public type declarations](./src/index.ts#L22-L82).
 
 for a detailed specification of the API,
-[run the unit tests in your browser](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v1.1.0/spec/web/index.html).
+[run the unit tests in your browser](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v2.0.0/spec/web/index.html).
 
 # <a name="contributing"></a> CONTRIBUTING
 see the [contribution guidelines](./CONTRIBUTING.md)

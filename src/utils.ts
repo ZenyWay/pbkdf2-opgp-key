@@ -16,6 +16,10 @@ export function isString (val: any): val is string|String {
   return typeof (val && val.valueOf()) === 'string'
 }
 
+export function isNumber (val: any): val is number|Number {
+  return typeof (val && val.valueOf()) === 'number'
+}
+
 export function isFunction (val: any): val is Function {
   return typeof val === 'function'
 }

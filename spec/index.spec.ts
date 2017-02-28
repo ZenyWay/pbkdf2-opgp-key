@@ -20,6 +20,7 @@ let mock: {
   opgp: {
     generateKey: jasmine.Spy
     getKeysFromArmor: jasmine.Spy
+    getArmorFromKey: jasmine.Spy
     unlock: jasmine.Spy
   }
 }
@@ -46,6 +47,7 @@ beforeEach(() => {
   const generateKey = jasmine.createSpy('generateKey')
   .and.returnValue(Promise.resolve(opgpkey))
   const getKeysFromArmor = jasmine.createSpy('getKeysFromArmor')
+  const getArmorFromKey = jasmine.createSpy('getArmorFromKey')
   const unlock = jasmine.createSpy('unlock')
   mock = {
     getkdf: getkdf,
@@ -53,6 +55,7 @@ beforeEach(() => {
     opgp: {
       generateKey: generateKey,
       getKeysFromArmor: getKeysFromArmor,
+      getArmorFromKey: getArmorFromKey,
       unlock: unlock
     }
   }
@@ -161,7 +164,9 @@ describe('getPbkdf2OpgpKey (creds: Credentials): Promise<Pbkdf2OpgpKey>', () => 
       expect(key).toEqual({
         key: opgpkey,
         pbkdf2: digest.spec,
-        unlock: jasmine.any(Function)
+        unlock: jasmine.any(Function),
+        toArmor: jasmine.any(Function),
+        clone: jasmine.any(Function)
       })
     })
   })
@@ -187,20 +192,26 @@ describe('getPbkdf2OpgpKey (creds: Credentials): Promise<Pbkdf2OpgpKey>', () => 
   })
 })
 
-describe('getPbkdf2OpgpKey (passphrase: string, armor: string): ' +
-'Promise<Pbkdf2OpgpKey>', () => {
+describe('getPbkdf2OpgpKey (armor: { armor: string, pbkdf2: Pbkdf2sha512DigestSpec }, ' +
+'passphrase: string): Promise<Pbkdf2OpgpKey>', () => {
   let getPbkdf2OpgpKey: any
   beforeEach(() => {
     getPbkdf2OpgpKey = getPbkdf2OpgpKeyFactory(mock.opgp, { getkdf: mock.getkdf })
   })
 
-  describe('when called with a passphrase string ' +
-  'and an armored string representation of a single private key', () => {
+  describe('when called with the specified arguments', () => {
     let key: any
+    let armor: any
     beforeEach((done) => {
       mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve(opgpkey))
       mock.opgp.unlock.and.returnValue(Promise.resolve(opgpkey))
-      getPbkdf2OpgpKey(creds.passphrase, 'armor')
+      armor = {
+        armor: 'armor',
+        pbkdf2: {
+          salt: 'salt'
+        }
+      }
+      getPbkdf2OpgpKey(armor, creds.passphrase)
       .then((_key: any) => key = _key)
       .then(() => setTimeout(done))
       .catch((err: any) => setTimeout(() => done.fail(err)))
@@ -212,7 +223,9 @@ describe('getPbkdf2OpgpKey (passphrase: string, armor: string): ' +
       expect(key).toEqual({
         key: opgpkey,
         pbkdf2: digest.spec,
-        unlock: jasmine.any(Function)
+        unlock: jasmine.any(Function),
+        toArmor: jasmine.any(Function),
+        clone: jasmine.any(Function)
       })
       expect(mock.opgp.getKeysFromArmor).toHaveBeenCalledWith('armor')
       expect(mock.pbkdf2).toHaveBeenCalledWith(creds.passphrase)
@@ -220,13 +233,13 @@ describe('getPbkdf2OpgpKey (passphrase: string, armor: string): ' +
     })
   })
 
-  describe('when called with a passphrase string ' +
-  'and an armored string representation of multiple private keys', () => {
+  describe('when called with an armored string representation of multiple private keys',
+  () => {
     let error: any
     beforeEach((done) => {
       mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve([ opgpkey, opgpkey ]))
 
-      getPbkdf2OpgpKey(creds.passphrase, 'armor')
+      getPbkdf2OpgpKey({ armor: 'armor', pbkdf2: { salt: 'salt' } }, creds.passphrase)
       .then((res: any) => setTimeout(() => done.fail(new Error(res))))
       .catch((err: any) => error = err)
       .then(() => setTimeout(done))
@@ -235,17 +248,15 @@ describe('getPbkdf2OpgpKey (passphrase: string, armor: string): ' +
       expect(error).toEqual(jasmine.any(Error))
       expect(error.message).toBe('unsupported multiple key armor')
       expect(mock.opgp.getKeysFromArmor).toHaveBeenCalledWith('armor')
-      expect(mock.pbkdf2).not.toHaveBeenCalled()
     })
   })
 
-  describe('when called with an incorrect passphrase string ' +
-  'and an armored string representation of a single private key', () => {
+  describe('when called with an incorrect passphrase string', () => {
     let error: any
     beforeEach((done) => {
       mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve(opgpkey))
       mock.opgp.unlock.and.returnValue(Promise.reject(new TypeError('boom')))
-      getPbkdf2OpgpKey(creds.passphrase, 'armor')
+      getPbkdf2OpgpKey({ armor: 'armor', pbkdf2: { salt: 'salt' } }, creds.passphrase)
       .then((err: any) => setTimeout(() => done.fail(new Error(err))))
       .catch((err: any) => error = err)
       .then(() => setTimeout(done))
@@ -284,7 +295,7 @@ describe('getPbkdf2OpgpKey (passphrase: string, armor: string): ' +
   })
 })
 
-describe('Pbkdf2OpgpKey.unlock (passphrase: string): Promise<Pbkdf2OpgpKey>', () => {
+describe ('Pbkdf2OpgpKey', () => {
   let key: any
   beforeEach((done) => {
     const getPbkdf2OpgpKey = getPbkdf2OpgpKeyFactory(mock.opgp, { getkdf: mock.getkdf })
@@ -294,60 +305,108 @@ describe('Pbkdf2OpgpKey.unlock (passphrase: string): Promise<Pbkdf2OpgpKey>', ()
     .catch((err: any) => setTimeout(() => done.fail(err)))
   })
 
-  describe('when called with the correct passphrase string', () => {
-    let unlocked: any
-    beforeEach((done) => {
-      mock.opgp.unlock.and.returnValue(Promise.resolve(opgpkey))
-      key.unlock(creds.passphrase)
-      .then((key: any) => unlocked = key)
-      .then(() => setTimeout(done))
-      .catch((err: any) => setTimeout(() => done.fail(err)))
+  describe('unlock (passphrase: string): Promise<Pbkdf2OpgpKey>', () => {
+    describe('when called with the correct passphrase string', () => {
+      let unlocked: any
+      beforeEach((done) => {
+        mock.opgp.unlock.and.returnValue(Promise.resolve(opgpkey))
+        key.unlock(creds.passphrase)
+        .then((key: any) => unlocked = key)
+        .then(() => setTimeout(done))
+        .catch((err: any) => setTimeout(() => done.fail(err)))
+      })
+      it('returns an unlocked instance of the key', () => {
+        expect(mock.opgp.unlock).toHaveBeenCalledWith(opgpkey, digest.value)
+        expect(unlocked).toEqual({
+          key: opgpkey,
+          pbkdf2: digest.spec,
+          unlock: jasmine.any(Function),
+          toArmor: jasmine.any(Function),
+          clone: jasmine.any(Function)
+        })
+      })
     })
-    it('returns the unlocked key', () => {
-      expect(mock.opgp.unlock).toHaveBeenCalledWith(opgpkey, digest.value)
-      expect(unlocked).toEqual({
-        key: opgpkey,
-        pbkdf2: digest.spec,
-        unlock: jasmine.any(Function)
+
+    describe('when called with any other string than the correct passphrase', () => {
+      let error: any
+      beforeEach((done) => {
+        mock.opgp.unlock.and.returnValue(Promise.reject(new TypeError('boom')))
+        key.unlock(creds.passphrase)
+        .catch((err: any) => error = err)
+        .then(() => setTimeout(done))
+        .catch((err: any) => setTimeout(() => done.fail(err)))
+      })
+      it('rejects with the error thrown by the underlying OpgpService#unlock method',
+      () => {
+        expect(error).toEqual(jasmine.any(TypeError))
+        expect(error.message).toBe('boom')
+      })
+    })
+
+    describe('when called with anything else than a string', () => {
+      let args: any
+      let errors: any
+      beforeEach((done) => {
+        args = [
+          null, undefined, true, 42, () => { return 'foo' }, [ 'foo' ],
+          { foo: 'bar' }
+        ]
+        Promise.all(args.map((arg: any) => key.unlock(arg).catch((err: any) => err)))
+        .then((errs: any) => errors = errs)
+        .then(() => setTimeout(done))
+        .catch((err: any) => setTimeout(() => done.fail(err)))
+      })
+      it('rejects with an "invalid argument" TypeError', () => {
+        expect(errors.length).toBe(args.length)
+        expect(mock.opgp.unlock).not.toHaveBeenCalled()
+        errors.every((error: any) => expect(error).toEqual(jasmine.any(TypeError))
+        && expect(error.message).toBe('invalid argument'))
+
       })
     })
   })
 
-  describe('when called with any other string than the correct passphrase', () => {
-    let error: any
+  describe('toArmor (): Promise<string>', () => {
+    let armor: any
     beforeEach((done) => {
-      mock.opgp.unlock.and.returnValue(Promise.reject(new TypeError('boom')))
-      key.unlock(creds.passphrase)
-      .catch((err: any) => error = err)
+      mock.opgp.getArmorFromKey.and.returnValue(Promise.resolve('armor'))
+      key.toArmor()
+      .then((_armor: any) => armor = _armor)
       .then(() => setTimeout(done))
       .catch((err: any) => setTimeout(() => done.fail(err)))
     })
-    it('rejects with the error thrown by the underlying OpgpService#unlock method',
-    () => {
-      expect(error).toEqual(jasmine.any(TypeError))
-      expect(error.message).toBe('boom')
+
+    it('returns the armored string representation of the key', () => {
+      expect(mock.opgp.getArmorFromKey).toHaveBeenCalledWith(opgpkey)
+      expect(armor).toEqual({
+        armor: 'armor',
+        pbkdf2: digest.spec
+      })
     })
   })
 
-  describe('when called with anything else than a string', () => {
-    let args: any
-    let errors: any
+  describe('clone (): Promise<string>', () => {
+    let clone: any
     beforeEach((done) => {
-      args = [
-        null, undefined, true, 42, () => { return 'foo' }, [ 'foo' ],
-        { foo: 'bar' }
-      ]
-      Promise.all(args.map((arg: any) => key.unlock(arg).catch((err: any) => err)))
-      .then((errs: any) => errors = errs)
+      mock.opgp.getArmorFromKey.and.returnValue(Promise.resolve('armor'))
+      mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve(opgpkey))
+      key.clone()
+      .then((_clone: any) => clone = _clone)
       .then(() => setTimeout(done))
       .catch((err: any) => setTimeout(() => done.fail(err)))
     })
-    it('rejects with an "invalid argument" TypeError', () => {
-      expect(errors.length).toBe(args.length)
-      expect(mock.opgp.unlock).not.toHaveBeenCalled()
-      errors.every((error: any) => expect(error).toEqual(jasmine.any(TypeError))
-      && expect(error.message).toBe('invalid argument'))
 
+    it('returns a locked clone of the key', () => {
+      expect(mock.opgp.getArmorFromKey).toHaveBeenCalledWith(opgpkey)
+      expect(mock.opgp.getKeysFromArmor).toHaveBeenCalledWith('armor')
+      expect(mock.opgp.unlock).not.toHaveBeenCalled()
+      expect(clone).toEqual({
+        key: opgpkey,
+        pbkdf2: digest.spec,
+        unlock: jasmine.any(Function),
+        toArmor: jasmine.any(Function),
+        clone: jasmine.any(Function)
+      })
     })
   })
 })
