@@ -105,6 +105,7 @@ describe('getPbkdf2OpgpKeyFactory (opgp: OpgpService, config?: Partial<Pbdkf2Opg
         pbkdf2: {},
         getkdf: mock.getkdf
       }
+      debugger
       const getPbkdf2OpgpKey = getPbkdf2OpgpKeyFactory(mock.opgp, config)
       getPbkdf2OpgpKey(creds)
       .then(() => setTimeout(done))

@@ -149,11 +149,11 @@ function wrapInstance (key: Promise<Pbkdf2OpgpKeyClass>): Promise<Pbkdf2OpgpKey>
 class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
   static newInstance (opgp: OpgpService, keyspec: Pbdkf2OpgpKeyConfig,
   user: string, passphrase: string): Promise<Pbkdf2OpgpKeyClass> {
-    const pbkdf2 = keyspec.getkdf(keyspec.pbkdf2)
+    const pbkdf2 = keyspec.getkdf(getPbkdf2Spec(keyspec.pbkdf2))
 
     return pbkdf2(passphrase)
     .then(digest => Promise.resolve<OpgpProxyKey>(opgp.generateKey(user, {
-        passphrase: digest.value,
+        passphrase: <string>digest.value,
         size: keyspec.size,
         unlocked: !keyspec.locked
       }))
@@ -162,14 +162,14 @@ class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
 
   static fromPbkdf2KeyArmor (opgp: OpgpService, keyspec: Pbdkf2OpgpKeyConfig,
   armor: Pbkdf2OpgpKeyArmor, passphrase: string): Promise<Pbkdf2OpgpKeyClass> {
-    const pbkdf2 = keyspec.getkdf(assign({}, keyspec.pbkdf2, armor.pbkdf2))
+    const pbkdf2 = keyspec.getkdf(getPbkdf2Spec(keyspec.pbkdf2, armor.pbkdf2))
     const key = opgp.getKeysFromArmor(armor.armor)
     .then(key => Array.isArray(key)
     ? Promise.reject<OpgpProxyKey>(new Error('unsupported multiple key armor')) // unlikely
     : key)
 
     return Promise.all<OpgpProxyKey,Pbkdf2sha512Digest>([ key, pbkdf2(passphrase) ])
-    .then<Pbkdf2OpgpKeyClass>(([ key, digest ]) => opgp.unlock(key, digest.value)
+    .then<Pbkdf2OpgpKeyClass>(([ key, digest ]) => opgp.unlock(key, <string>digest.value)
     .then(key => new Pbkdf2OpgpKeyClass(keyspec.getkdf, opgp, key, digest.spec)))
   }
 
@@ -179,7 +179,7 @@ class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
     }
     const pbkdf2 = this.getPbkdf2(this.pbkdf2)
     return pbkdf2(passphrase)
-    .then(digest => Promise.resolve<OpgpProxyKey>(this.opgp.unlock(this.key, digest.value)))
+    .then(digest => Promise.resolve<OpgpProxyKey>(this.opgp.unlock(this.key, <string>digest.value)))
     .then(key => new Pbkdf2OpgpKeyClass(this.getPbkdf2, this.opgp, key, this.pbkdf2))
   }
 
@@ -203,6 +203,13 @@ class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
     public key: OpgpProxyKey,
     public pbkdf2: Pbkdf2sha512DigestSpec
   ) {}
+}
+
+function getPbkdf2Spec (...spec: Partial<Pbkdf2Sha512Config>[]): Partial<Pbkdf2Sha512Config> {
+  const pbkdf2spec: Partial<Pbkdf2Sha512Config> =
+  assign.apply(void 0, [ {} ].concat(spec))
+  if (pbkdf2spec.encoding === 'none') { delete pbkdf2spec.encoding }
+  return pbkdf2spec
 }
 
 const OPGP_SERVICE_METHODS = [

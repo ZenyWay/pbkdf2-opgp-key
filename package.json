@@ -1,6 +1,6 @@
 {
   "name": "pbkdf2-opgp-key",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "opgp-service keys encrypted with a pbkdf2-sha512 digest.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -47,7 +47,7 @@
   "dependencies": {
     "opgp-service": "^2.2.2",
     "pbkdf2": "^3.0.9",
-    "pbkdf2sha512": "^1.0.2",
+    "pbkdf2sha512": "^1.1.0",
     "randombytes": "^2.0.3",
     "tslib": "^1.6.0"
   },

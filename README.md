@@ -42,7 +42,7 @@ armor.then(armor => getPbkdf2OpgpKey(armor, 'secret passphrase'))
 ```
 the files of this example are available [in this repository](./spec/example).
 
-view a [live version of this example in your browser console](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v2.0.0/spec/example/index.html),
+view a [live version of this example in your browser console](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v2.0.1/spec/example/index.html),
 or clone this repository and run the following commands from a terminal:
 ```bash
 npm install
@@ -63,7 +63,7 @@ Pbkdf2OpgpKey instances currently expose a single method:
 browse the API's [public type declarations](./src/index.ts#L22-L82).
 
 for a detailed specification of the API,
-[run the unit tests in your browser](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v2.0.0/spec/web/index.html).
+[run the unit tests in your browser](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v2.0.1/spec/web/index.html).
 
 # <a name="contributing"></a> CONTRIBUTING
 see the [contribution guidelines](./CONTRIBUTING.md)
