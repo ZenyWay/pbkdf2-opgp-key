@@ -152,12 +152,12 @@ class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
     const pbkdf2 = keyspec.getkdf(getPbkdf2Spec(keyspec.pbkdf2))
 
     return pbkdf2(passphrase)
-    .then(digest => Promise.resolve<OpgpProxyKey>(opgp.generateKey(user, {
+    .then<Pbkdf2OpgpKey>(digest => opgp.generateKey(user, {
         passphrase: <string>digest.value,
         size: keyspec.size,
         unlocked: !keyspec.locked
-      }))
-      .then(key => new Pbkdf2OpgpKeyClass(keyspec.getkdf, opgp, key, digest.spec)))
+      })
+      .then(key => Pbkdf2OpgpKeyClass.fromOpgpProxyKey(keyspec.getkdf, opgp, key, digest.spec)))
   }
 
   static fromPbkdf2KeyArmor (opgp: OpgpService, keyspec: Pbdkf2OpgpKeyConfig,
@@ -170,7 +170,7 @@ class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
 
     return Promise.all<OpgpProxyKey,Pbkdf2sha512Digest>([ key, pbkdf2(passphrase) ])
     .then<Pbkdf2OpgpKeyClass>(([ key, digest ]) => opgp.unlock(key, <string>digest.value)
-    .then(key => new Pbkdf2OpgpKeyClass(keyspec.getkdf, opgp, key, digest.spec)))
+    .then(key => new Pbkdf2OpgpKeyClass(keyspec.getkdf, opgp, armor.armor, key, digest.spec)))
   }
 
   unlock (passphrase: string): Promise<Pbkdf2OpgpKeyClass> {
@@ -180,29 +180,39 @@ class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
     const pbkdf2 = this.getPbkdf2(this.pbkdf2)
     return pbkdf2(passphrase)
     .then(digest => Promise.resolve<OpgpProxyKey>(this.opgp.unlock(this.key, <string>digest.value)))
-    .then(key => new Pbkdf2OpgpKeyClass(this.getPbkdf2, this.opgp, key, this.pbkdf2))
+    .then(key => this._getInstance(key))
   }
 
   toArmor (): Promise<Pbkdf2OpgpKeyArmor> {
-    return Promise.resolve<string>(this.opgp.getArmorFromKey(this.key))
-    .then(armor => ({
-      armor: armor,
+    return Promise.resolve<Pbkdf2OpgpKeyArmor>({
+      armor: this.armor,
       pbkdf2: assign({}, this.pbkdf2)
-    }))
+    })
   }
 
   clone (): Promise<Pbkdf2OpgpKeyClass> {
-    return Promise.resolve<string>(this.opgp.getArmorFromKey(this.key))
-    .then<OpgpProxyKey>(armor => this.opgp.getKeysFromArmor(armor)) // only one key
-    .then(key => new Pbkdf2OpgpKeyClass(this.getPbkdf2, this.opgp, key, this.pbkdf2))
+    return Promise.resolve<OpgpProxyKey>(this.opgp.getKeysFromArmor(this.armor))
+    .then(key => this._getInstance(key))
+  }
+
+  private static fromOpgpProxyKey (this: void, getkdf: Pbkdf2Sha512Factory,
+  opgp: OpgpService, key: OpgpProxyKey, digest: Pbkdf2sha512DigestSpec)
+  : Promise<Pbkdf2OpgpKey> {
+    return Promise.resolve<string>(opgp.getArmorFromKey(key))
+    .then(armor => new Pbkdf2OpgpKeyClass(getkdf, opgp, armor, key, digest))
   }
 
   private constructor (
     public getPbkdf2: Pbkdf2Sha512Factory,
     public opgp: OpgpService,
+    public armor: string,
     public key: OpgpProxyKey,
     public pbkdf2: Pbkdf2sha512DigestSpec
   ) {}
+
+  private _getInstance (key: OpgpProxyKey): Pbkdf2OpgpKey {
+    return new Pbkdf2OpgpKeyClass(this.getPbkdf2, this.opgp, this.armor, key, this.pbkdf2)
+  }
 }
 
 function getPbkdf2Spec (...spec: Partial<Pbkdf2Sha512Config>[]): Partial<Pbkdf2Sha512Config> {

@@ -105,7 +105,6 @@ describe('getPbkdf2OpgpKeyFactory (opgp: OpgpService, config?: Partial<Pbdkf2Opg
         pbkdf2: {},
         getkdf: mock.getkdf
       }
-      debugger
       const getPbkdf2OpgpKey = getPbkdf2OpgpKeyFactory(mock.opgp, config)
       getPbkdf2OpgpKey(creds)
       .then(() => setTimeout(done))
@@ -162,6 +161,7 @@ describe('getPbkdf2OpgpKey (creds: Credentials): Promise<Pbkdf2OpgpKey>', () => 
     it('returns a Pbkdf2OpgpKey object:  { key: OpgpProxyKey, ' +
     'pbkdf2: Pbkdf2Sha512Config, unlock: (passphrase: string) => Promise<Pbkdf2OpgpKey>',
     () => {
+      expect(mock.opgp.getArmorFromKey).toHaveBeenCalledWith(opgpkey)
       expect(key).toEqual({
         key: opgpkey,
         pbkdf2: digest.spec,
@@ -186,6 +186,7 @@ describe('getPbkdf2OpgpKey (creds: Credentials): Promise<Pbkdf2OpgpKey>', () => 
       .catch((err: any) => setTimeout(() => done.fail(err)))
     })
     it('rejects with an "invalid credentials" TypeError', () => {
+      expect(mock.opgp.getArmorFromKey).not.toHaveBeenCalled()
       expect(errors.length).toBe(args.length)
       errors.every((error: any) => expect(error).toEqual(jasmine.any(TypeError))
       && expect(error.message).toBe('invalid credentials'))
@@ -299,6 +300,7 @@ describe('getPbkdf2OpgpKey (armor: { armor: string, pbkdf2: Pbkdf2sha512DigestSp
 describe ('Pbkdf2OpgpKey', () => {
   let key: any
   beforeEach((done) => {
+    mock.opgp.getArmorFromKey.and.returnValue(Promise.resolve('armor'))
     const getPbkdf2OpgpKey = getPbkdf2OpgpKeyFactory(mock.opgp, { getkdf: mock.getkdf })
     getPbkdf2OpgpKey(creds)
     .then((_key: any) => key = _key)
@@ -370,7 +372,7 @@ describe ('Pbkdf2OpgpKey', () => {
   describe('toArmor (): Promise<string>', () => {
     let armor: any
     beforeEach((done) => {
-      mock.opgp.getArmorFromKey.and.returnValue(Promise.resolve('armor'))
+      mock.opgp.getArmorFromKey.calls.reset()
       key.toArmor()
       .then((_armor: any) => armor = _armor)
       .then(() => setTimeout(done))
@@ -378,7 +380,7 @@ describe ('Pbkdf2OpgpKey', () => {
     })
 
     it('returns the armored string representation of the key', () => {
-      expect(mock.opgp.getArmorFromKey).toHaveBeenCalledWith(opgpkey)
+      expect(mock.opgp.getArmorFromKey).not.toHaveBeenCalled()
       expect(armor).toEqual({
         armor: 'armor',
         pbkdf2: digest.spec
@@ -389,7 +391,7 @@ describe ('Pbkdf2OpgpKey', () => {
   describe('clone (): Promise<string>', () => {
     let clone: any
     beforeEach((done) => {
-      mock.opgp.getArmorFromKey.and.returnValue(Promise.resolve('armor'))
+      mock.opgp.getArmorFromKey.calls.reset()
       mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve(opgpkey))
       key.clone()
       .then((_clone: any) => clone = _clone)
@@ -398,7 +400,7 @@ describe ('Pbkdf2OpgpKey', () => {
     })
 
     it('returns a locked clone of the key', () => {
-      expect(mock.opgp.getArmorFromKey).toHaveBeenCalledWith(opgpkey)
+      expect(mock.opgp.getArmorFromKey).not.toHaveBeenCalled()
       expect(mock.opgp.getKeysFromArmor).toHaveBeenCalledWith('armor')
       expect(mock.opgp.unlock).not.toHaveBeenCalled()
       expect(clone).toEqual({
