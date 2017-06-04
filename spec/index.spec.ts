@@ -145,8 +145,10 @@ describe('getPbkdf2OpgpKeyFactory (opgp: OpgpService, config?: Partial<Pbdkf2Opg
 
 describe('getPbkdf2OpgpKey (creds: Credentials): Promise<Pbkdf2OpgpKey>', () => {
   let getPbkdf2OpgpKey: any
+  let keyspec: any
   beforeEach(() => {
-    getPbkdf2OpgpKey = getPbkdf2OpgpKeyFactory(mock.opgp, { getkdf: mock.getkdf })
+    keyspec = { iterations: 1, relaxed: true }
+    getPbkdf2OpgpKey = getPbkdf2OpgpKeyFactory(mock.opgp, { getkdf: mock.getkdf, pbkdf2: keyspec })
   })
 
   describe('when called with a Credentials object: { user: string, passphrase: string }',
@@ -162,6 +164,7 @@ describe('getPbkdf2OpgpKey (creds: Credentials): Promise<Pbkdf2OpgpKey>', () => 
     'pbkdf2: Pbkdf2Sha512Config, unlock: (passphrase: string) => Promise<Pbkdf2OpgpKey>',
     () => {
       expect(mock.opgp.getArmorFromKey).toHaveBeenCalledWith(opgpkey)
+      expect(mock.getkdf).toHaveBeenCalledWith(keyspec)
       expect(key).toEqual({
         key: opgpkey,
         pbkdf2: digest.spec,
@@ -210,7 +213,9 @@ describe('getPbkdf2OpgpKey (armor: { armor: string, pbkdf2: Pbkdf2sha512DigestSp
       armor = {
         armor: 'armor',
         pbkdf2: {
-          salt: 'salt'
+          salt: 'salt',
+          iterations: 1,
+          relaxed: true
         }
       }
       getPbkdf2OpgpKey(armor, creds.passphrase)
@@ -229,6 +234,7 @@ describe('getPbkdf2OpgpKey (armor: { armor: string, pbkdf2: Pbkdf2sha512DigestSp
         toArmor: jasmine.any(Function),
         clone: jasmine.any(Function)
       })
+      expect(mock.getkdf).toHaveBeenCalledWith(jasmine.objectContaining(armor.pbkdf2))
       expect(mock.opgp.getKeysFromArmor).toHaveBeenCalledWith('armor')
       expect(mock.pbkdf2).toHaveBeenCalledWith(creds.passphrase)
       expect(mock.opgp.unlock).toHaveBeenCalledWith(opgpkey, digest.value)

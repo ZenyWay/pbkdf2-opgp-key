@@ -17,7 +17,6 @@ import {
   Pbkdf2Sha512Factory, Pbkdf2Sha512Config, Pbkdf2sha512DigestSpec, Pbkdf2sha512Digest
 } from 'pbkdf2sha512'
 import { OpgpService, OpgpProxyKey, Eventual, OneOrMore } from 'opgp-service'
-import { __assign as assign } from 'tslib'
 
 export interface Pbdkf2OpgpKeyFactoryBuilder {
   (opgp: OpgpService, config?: Partial<Pbdkf2OpgpKeyConfig>): Pbdkf2OpgpKeyFactory
@@ -100,8 +99,8 @@ const getPbkdf2OpgpKeyFactory: Pbdkf2OpgpKeyFactoryBuilder =
 function (opgp: OpgpService, config?: Partial<Pbdkf2OpgpKeyConfig>) {
   if (!isValidOpgpService(opgp)) { throw new TypeError('invalid argument') }
 
-  const keyspec: Pbdkf2OpgpKeyConfig = assign({}, { size: KEY_SIZE_DEFAULT }, config)
-  keyspec.pbkdf2 = assign({}, keyspec.pbkdf2)
+  const keyspec: Partial<Pbdkf2OpgpKeyConfig> = { size: KEY_SIZE_DEFAULT, ...config }
+  keyspec.pbkdf2 = { ...keyspec.pbkdf2 }
   keyspec.getkdf = isFunction(keyspec.getkdf)
   ? keyspec.getkdf
   : require('pbkdf2sha512').default
@@ -118,7 +117,7 @@ function (opgp: OpgpService, config?: Partial<Pbdkf2OpgpKeyConfig>) {
   return getKey
 }
 
-function getPbkdf2OpgpKey (opgp: OpgpService, config: Pbdkf2OpgpKeyConfig,
+function getPbkdf2OpgpKey (opgp: OpgpService, config: Partial<Pbdkf2OpgpKeyConfig>,
 spec: Credentials|Pbkdf2OpgpKeyArmor|string, passphrase?: string): Promise<Pbkdf2OpgpKey> {
   if (isString(spec)) {
     return getPbkdf2OpgpKey(opgp, config, { user: spec, passphrase: passphrase })
@@ -147,7 +146,7 @@ function wrapInstance (key: Promise<Pbkdf2OpgpKeyClass>): Promise<Pbkdf2OpgpKey>
 }
 
 class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
-  static newInstance (opgp: OpgpService, keyspec: Pbdkf2OpgpKeyConfig,
+  static newInstance (opgp: OpgpService, keyspec: Partial<Pbdkf2OpgpKeyConfig>,
   user: string, passphrase: string): Promise<Pbkdf2OpgpKeyClass> {
     const pbkdf2 = keyspec.getkdf(getPbkdf2Spec(keyspec.pbkdf2))
 
@@ -160,9 +159,9 @@ class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
       .then(key => Pbkdf2OpgpKeyClass.fromOpgpProxyKey(keyspec.getkdf, opgp, key, digest.spec)))
   }
 
-  static fromPbkdf2KeyArmor (opgp: OpgpService, keyspec: Pbdkf2OpgpKeyConfig,
+  static fromPbkdf2KeyArmor (opgp: OpgpService, keyspec: Partial<Pbdkf2OpgpKeyConfig>,
   armor: Pbkdf2OpgpKeyArmor, passphrase: string): Promise<Pbkdf2OpgpKeyClass> {
-    const pbkdf2 = keyspec.getkdf(getPbkdf2Spec(keyspec.pbkdf2, armor.pbkdf2))
+    const pbkdf2 = keyspec.getkdf(getPbkdf2Spec({ ...keyspec.pbkdf2, ...armor.pbkdf2 }))
     const key = opgp.getKeysFromArmor(armor.armor)
     .then(key => Array.isArray(key)
     ? Promise.reject<OpgpProxyKey>(new Error('unsupported multiple key armor')) // unlikely
@@ -177,7 +176,11 @@ class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
     if (!isString(passphrase)) {
       return Promise.reject(new TypeError('invalid argument'))
     }
-    const pbkdf2 = this.getPbkdf2(this.pbkdf2)
+    const keyspec: Partial<Pbdkf2OpgpKeyConfig> & Pbkdf2sha512DigestSpec = {
+      ...this.pbkdf2,
+      relaxed: this.pbkdf2.iterations < 8192
+    }
+    const pbkdf2 = this.getPbkdf2(keyspec)
     return pbkdf2(passphrase)
     .then(digest => Promise.resolve<OpgpProxyKey>(this.opgp.unlock(this.key, <string>digest.value)))
     .then(key => this._getInstance(key))
@@ -186,7 +189,7 @@ class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
   toArmor (): Promise<Pbkdf2OpgpKeyArmor> {
     return Promise.resolve<Pbkdf2OpgpKeyArmor>({
       armor: this.armor,
-      pbkdf2: assign({}, this.pbkdf2)
+      pbkdf2: { ...this.pbkdf2 }
     })
   }
 
@@ -215,9 +218,8 @@ class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
   }
 }
 
-function getPbkdf2Spec (...spec: Partial<Pbkdf2Sha512Config>[]): Partial<Pbkdf2Sha512Config> {
-  const pbkdf2spec: Partial<Pbkdf2Sha512Config> =
-  assign.apply(void 0, [ {} ].concat(spec))
+function getPbkdf2Spec (spec: Partial<Pbkdf2Sha512Config>): Partial<Pbkdf2Sha512Config> {
+  const pbkdf2spec: Partial<Pbkdf2Sha512Config> = { ...spec }
   if (pbkdf2spec.encoding === 'none') { delete pbkdf2spec.encoding }
   return pbkdf2spec
 }
