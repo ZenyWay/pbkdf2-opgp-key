@@ -22,10 +22,12 @@ let mock: {
     getKeysFromArmor: jasmine.Spy
     getArmorFromKey: jasmine.Spy
     unlock: jasmine.Spy
+    lock: jasmine.Spy
   }
 }
 let getPbkdf2: jasmine.Spy
-let opgpkey: any
+let unlockedopgpkey: any
+let lockedopgpkey: any
 let digest: any
 let creds: {
   user: string
@@ -33,8 +35,10 @@ let creds: {
 }
 
 beforeEach(() => {
-  opgpkey = {
-    handle: 'key-handle'
+  unlockedopgpkey = { handle: 'key-handle' }
+  lockedopgpkey = {
+    handle: unlockedopgpkey.handle,
+    isLocked: true
   }
   digest = {
     value: 'digest',
@@ -45,10 +49,11 @@ beforeEach(() => {
   const getkdf = jasmine.createSpy('getkdf')
   .and.returnValue(pbkdf2)
   const generateKey = jasmine.createSpy('generateKey')
-  .and.returnValue(Promise.resolve(opgpkey))
+  .and.returnValue(Promise.resolve(lockedopgpkey))
   const getKeysFromArmor = jasmine.createSpy('getKeysFromArmor')
   const getArmorFromKey = jasmine.createSpy('getArmorFromKey')
   const unlock = jasmine.createSpy('unlock')
+  const lock = jasmine.createSpy('lock')
   mock = {
     getkdf: getkdf,
     pbkdf2: pbkdf2,
@@ -56,7 +61,8 @@ beforeEach(() => {
       generateKey: generateKey,
       getKeysFromArmor: getKeysFromArmor,
       getArmorFromKey: getArmorFromKey,
-      unlock: unlock
+      unlock: unlock,
+      lock: lock
     }
   }
   creds = {
@@ -163,10 +169,10 @@ describe('getPbkdf2OpgpKey (creds: Credentials): Promise<Pbkdf2OpgpKey>', () => 
     it('returns a Pbkdf2OpgpKey object:  { key: OpgpProxyKey, ' +
     'pbkdf2: Pbkdf2Sha512Config, unlock: (passphrase: string) => Promise<Pbkdf2OpgpKey>',
     () => {
-      expect(mock.opgp.getArmorFromKey).toHaveBeenCalledWith(opgpkey)
+      expect(mock.opgp.getArmorFromKey).toHaveBeenCalledWith(lockedopgpkey)
       expect(mock.getkdf).toHaveBeenCalledWith(keyspec)
       expect(key).toEqual({
-        key: opgpkey,
+        key: lockedopgpkey,
         pbkdf2: digest.spec,
         unlock: jasmine.any(Function),
         toArmor: jasmine.any(Function),
@@ -204,12 +210,12 @@ describe('getPbkdf2OpgpKey (armor: { armor: string, pbkdf2: Pbkdf2sha512DigestSp
     getPbkdf2OpgpKey = getPbkdf2OpgpKeyFactory(mock.opgp, { getkdf: mock.getkdf })
   })
 
-  describe('when called with the specified arguments', () => {
+  describe('when called with an armor of a locked key and a passphrase', () => {
     let key: any
     let armor: any
     beforeEach((done) => {
-      mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve(opgpkey))
-      mock.opgp.unlock.and.returnValue(Promise.resolve(opgpkey))
+      mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve(lockedopgpkey))
+      mock.opgp.unlock.and.returnValue(Promise.resolve(unlockedopgpkey))
       armor = {
         armor: 'armor',
         pbkdf2: {
@@ -228,7 +234,7 @@ describe('getPbkdf2OpgpKey (armor: { armor: string, pbkdf2: Pbkdf2sha512DigestSp
     'unlock: (passphrase: string) => Promise<Pbkdf2OpgpKey>',
     () => {
       expect(key).toEqual({
-        key: opgpkey,
+        key: unlockedopgpkey,
         pbkdf2: digest.spec,
         unlock: jasmine.any(Function),
         toArmor: jasmine.any(Function),
@@ -237,7 +243,51 @@ describe('getPbkdf2OpgpKey (armor: { armor: string, pbkdf2: Pbkdf2sha512DigestSp
       expect(mock.getkdf).toHaveBeenCalledWith(jasmine.objectContaining(armor.pbkdf2))
       expect(mock.opgp.getKeysFromArmor).toHaveBeenCalledWith('armor')
       expect(mock.pbkdf2).toHaveBeenCalledWith(creds.passphrase)
-      expect(mock.opgp.unlock).toHaveBeenCalledWith(opgpkey, digest.value)
+      expect(mock.opgp.unlock).toHaveBeenCalledWith(lockedopgpkey, digest.value)
+      expect(mock.opgp.lock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when called with an armor of an unlocked key and a passphrase', () => {
+    let key: any
+    let armor: any
+    beforeEach((done) => {
+      mock.opgp.getKeysFromArmor
+      .and.returnValues(Promise.resolve(unlockedopgpkey), Promise.resolve(lockedopgpkey))
+      mock.opgp.getArmorFromKey.and.returnValue(Promise.resolve('locked-armor'))
+      mock.opgp.unlock.and.returnValue(Promise.resolve(unlockedopgpkey))
+      mock.opgp.lock.and.returnValue(Promise.resolve(lockedopgpkey))
+      armor = {
+        armor: 'armor',
+        pbkdf2: {
+          salt: 'salt',
+          iterations: 1,
+          relaxed: true
+        }
+      }
+      getPbkdf2OpgpKey(armor, creds.passphrase)
+      .then((_key: any) => key = _key)
+      .then(() => setTimeout(done))
+      .catch((err: any) => setTimeout(() => done.fail(err)))
+    })
+    it('returns a Pbkdf2OpgpKey object encapsulating the extracted key: ' +
+    '{ key: OpgpProxyKey, pbkdf2: Pbkdf2Sha512Config, ' +
+    'unlock: (passphrase: string) => Promise<Pbkdf2OpgpKey>',
+    () => {
+      expect(key).toEqual({
+        key: unlockedopgpkey,
+        pbkdf2: digest.spec,
+        unlock: jasmine.any(Function),
+        toArmor: jasmine.any(Function),
+        clone: jasmine.any(Function)
+      })
+      expect(mock.getkdf).toHaveBeenCalledWith(jasmine.objectContaining(armor.pbkdf2))
+      expect(mock.opgp.getKeysFromArmor).toHaveBeenCalledWith('armor')
+      expect(mock.pbkdf2).toHaveBeenCalledWith(creds.passphrase)
+      expect(mock.opgp.lock).toHaveBeenCalledWith(unlockedopgpkey, digest.value)
+      expect(mock.opgp.getArmorFromKey).toHaveBeenCalledWith(lockedopgpkey)
+      expect(mock.opgp.getKeysFromArmor).toHaveBeenCalledWith('locked-armor')
+      expect(mock.opgp.unlock).toHaveBeenCalledWith(lockedopgpkey, digest.value)
     })
   })
 
@@ -245,7 +295,7 @@ describe('getPbkdf2OpgpKey (armor: { armor: string, pbkdf2: Pbkdf2sha512DigestSp
   () => {
     let error: any
     beforeEach((done) => {
-      mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve([ opgpkey, opgpkey ]))
+      mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve([ lockedopgpkey, lockedopgpkey ]))
 
       getPbkdf2OpgpKey({ armor: 'armor', pbkdf2: { salt: 'salt' } }, creds.passphrase)
       .then((res: any) => setTimeout(() => done.fail(new Error(res))))
@@ -256,13 +306,14 @@ describe('getPbkdf2OpgpKey (armor: { armor: string, pbkdf2: Pbkdf2sha512DigestSp
       expect(error).toEqual(jasmine.any(Error))
       expect(error.message).toBe('unsupported multiple key armor')
       expect(mock.opgp.getKeysFromArmor).toHaveBeenCalledWith('armor')
+      expect(mock.opgp.lock).not.toHaveBeenCalled()
     })
   })
 
   describe('when called with an incorrect passphrase string', () => {
     let error: any
     beforeEach((done) => {
-      mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve(opgpkey))
+      mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve(lockedopgpkey))
       mock.opgp.unlock.and.returnValue(Promise.reject(new TypeError('boom')))
       getPbkdf2OpgpKey({ armor: 'armor', pbkdf2: { salt: 'salt' } }, creds.passphrase)
       .then((err: any) => setTimeout(() => done.fail(new Error(err))))
@@ -275,7 +326,8 @@ describe('getPbkdf2OpgpKey (armor: { armor: string, pbkdf2: Pbkdf2sha512DigestSp
       expect(error.message).toBe('boom')
       expect(mock.opgp.getKeysFromArmor).toHaveBeenCalledWith('armor')
       expect(mock.pbkdf2).toHaveBeenCalledWith(creds.passphrase)
-      expect(mock.opgp.unlock).toHaveBeenCalledWith(opgpkey, digest.value)
+      expect(mock.opgp.unlock).toHaveBeenCalledWith(lockedopgpkey, digest.value)
+      expect(mock.opgp.lock).not.toHaveBeenCalled()
     })
   })
 
@@ -318,16 +370,16 @@ describe ('Pbkdf2OpgpKey', () => {
     describe('when called with the correct passphrase string', () => {
       let unlocked: any
       beforeEach((done) => {
-        mock.opgp.unlock.and.returnValue(Promise.resolve(opgpkey))
+        mock.opgp.unlock.and.returnValue(Promise.resolve(lockedopgpkey))
         key.unlock(creds.passphrase)
         .then((key: any) => unlocked = key)
         .then(() => setTimeout(done))
         .catch((err: any) => setTimeout(() => done.fail(err)))
       })
       it('returns an unlocked instance of the key', () => {
-        expect(mock.opgp.unlock).toHaveBeenCalledWith(opgpkey, digest.value)
+        expect(mock.opgp.unlock).toHaveBeenCalledWith(lockedopgpkey, digest.value)
         expect(unlocked).toEqual({
-          key: opgpkey,
+          key: lockedopgpkey,
           pbkdf2: digest.spec,
           unlock: jasmine.any(Function),
           toArmor: jasmine.any(Function),
@@ -398,7 +450,7 @@ describe ('Pbkdf2OpgpKey', () => {
     let clone: any
     beforeEach((done) => {
       mock.opgp.getArmorFromKey.calls.reset()
-      mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve(opgpkey))
+      mock.opgp.getKeysFromArmor.and.returnValue(Promise.resolve(lockedopgpkey))
       key.clone()
       .then((_clone: any) => clone = _clone)
       .then(() => setTimeout(done))
@@ -410,7 +462,7 @@ describe ('Pbkdf2OpgpKey', () => {
       expect(mock.opgp.getKeysFromArmor).toHaveBeenCalledWith('armor')
       expect(mock.opgp.unlock).not.toHaveBeenCalled()
       expect(clone).toEqual({
-        key: opgpkey,
+        key: lockedopgpkey,
         pbkdf2: digest.spec,
         unlock: jasmine.any(Function),
         toArmor: jasmine.any(Function),

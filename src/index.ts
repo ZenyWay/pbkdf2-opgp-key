@@ -119,13 +119,13 @@ function (opgp: OpgpService, config?: Partial<Pbdkf2OpgpKeyConfig>) {
 
 function getPbkdf2OpgpKey (opgp: OpgpService, config: Partial<Pbdkf2OpgpKeyConfig>,
 spec: Credentials|Pbkdf2OpgpKeyArmor|string, passphrase?: string): Promise<Pbkdf2OpgpKey> {
-  if (isString(spec)) {
+  if (isString(spec)) { // username
     return getPbkdf2OpgpKey(opgp, config, { user: spec, passphrase: passphrase })
   }
   if (isValidCredentials(spec)) {
     return Pbkdf2OpgpKeyClass.newInstance(opgp, config, spec.user, spec.passphrase)
   }
-  if (isValidKeyArmor(spec) && isString(passphrase)) {
+  if (isValidPbkdf2KeyArmor(spec) && isString(passphrase)) {
     return Pbkdf2OpgpKeyClass.fromPbkdf2KeyArmor(opgp, config, spec, passphrase)
   }
   return Promise.reject<Pbkdf2OpgpKey>(new TypeError('invalid arguments'))
@@ -162,14 +162,36 @@ class Pbkdf2OpgpKeyClass implements Pbkdf2OpgpKey {
   static fromPbkdf2KeyArmor (opgp: OpgpService, keyspec: Partial<Pbdkf2OpgpKeyConfig>,
   armor: Pbkdf2OpgpKeyArmor, passphrase: string): Promise<Pbkdf2OpgpKeyClass> {
     const pbkdf2 = keyspec.getkdf(getPbkdf2Spec({ ...keyspec.pbkdf2, ...armor.pbkdf2 }))
-    const key = opgp.getKeysFromArmor(armor.armor)
-    .then(key => Array.isArray(key)
-    ? Promise.reject<OpgpProxyKey>(new Error('unsupported multiple key armor')) // unlikely
-    : key)
+    const digest = pbkdf2(passphrase)
+    const key = getOpgpProxyKey(armor.armor)
 
-    return Promise.all<OpgpProxyKey,Pbkdf2sha512Digest>([ key, pbkdf2(passphrase) ])
-    .then<Pbkdf2OpgpKeyClass>(([ key, digest ]) => opgp.unlock(key, <string>digest.value)
-    .then(key => new Pbkdf2OpgpKeyClass(keyspec.getkdf, opgp, armor.armor, key, digest.spec)))
+    return Promise.all([ key, digest ])
+    .then(([ key, digest ]) => getPbkdf2OpgpKey(key, digest))
+
+    function getOpgpProxyKey (armor: string): PromiseLike<OpgpProxyKey> {
+      return opgp.getKeysFromArmor(armor)
+      .then(key => Array.isArray(key)
+      ? Promise.reject<OpgpProxyKey>(new Error('unsupported multiple key armor')) // unlikely
+      : key)
+    }
+
+    function getPbkdf2OpgpKey (key: OpgpProxyKey, digest: Pbkdf2sha512Digest)
+    : PromiseLike<Pbkdf2OpgpKey> {
+      const password = <string>digest.value
+
+      return !key.isLocked
+      ? opgp.lock(key, password).then(fromOpgpProxyKey) // locking key invalidates original
+      : opgp.unlock(key, password).then(key =>
+        new Pbkdf2OpgpKeyClass(keyspec.getkdf, opgp, armor.armor, key, digest.spec))
+    }
+
+    function fromOpgpProxyKey (key: OpgpProxyKey): PromiseLike<Pbkdf2OpgpKey> {
+      return opgp.getArmorFromKey(key)
+      .then(opgparmor => Pbkdf2OpgpKeyClass.fromPbkdf2KeyArmor(opgp, keyspec, {
+        armor: opgparmor,
+        pbkdf2: { ...armor.pbkdf2 }
+      }, passphrase))
+    }
   }
 
   unlock (passphrase: string): Promise<Pbkdf2OpgpKeyClass> {
@@ -236,8 +258,12 @@ function isValidCredentials (val: any): val is Credentials {
   return !!val && isString(val.user) && isString(val.passphrase)
 }
 
-function isValidKeyArmor (val: any): val is Pbkdf2OpgpKeyArmor {
-  return !!val && isString(val.armor) && !!val.pbkdf2 && isString(val.pbkdf2.salt)
+function isValidPbkdf2KeyArmor (val: any): val is Pbkdf2OpgpKeyArmor {
+  return !!val && isString(val.armor) && isValidPbkdf2Digest(val.pbkdf2)
+}
+
+function isValidPbkdf2Digest (val: any): val is Pbkdf2sha512DigestSpec {
+  return !!val && isString(val.salt)
 }
 
 export default getPbkdf2OpgpKeyFactory
