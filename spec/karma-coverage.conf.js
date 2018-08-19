@@ -31,9 +31,7 @@ module.exports = function (config) {
         ]
       ])
     }),
-    reporters: [
-      'spec', 'coverage'
-    ],
+    reporters: [ 'spec', 'coverage' ],
     coverageReporter: {
       dir: './reports/coverage',
       reporters: [

@@ -8,11 +8,12 @@
 with a [pbkdf2-sha512](https://www.npmjs.com/package/pbkdf2sha512) digest.
 
 Pbkdf2OpgpKey instances encapsulate a _private_ OpgpProxyKey.
+ES5. TypeScript support. 1.1kb gzip.
 
 # <a name="example"></a> example
 ```ts
 import getPbkdf2OpgpKeyFactory from 'pbkdf2-opgp-key'
-import getOpgpService, { OpgpService, OpgpProxyKey } from 'opgp-service'
+import getOpgpService from 'opgp-service'
 import debug = require('debug')
 debug.enable('example:*')
 
@@ -42,7 +43,7 @@ armor.then(armor => getPbkdf2OpgpKey(armor, 'secret passphrase'))
 ```
 the files of this example are available [in this repository](./spec/example).
 
-view a [live version of this example in your browser console](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v2.2.0/spec/example/index.html),
+view a [live version of this example in your browser console](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v2.2.1/spec/example/index.html),
 or clone this repository and run the following commands from a terminal:
 ```bash
 npm install
@@ -51,7 +52,7 @@ npm run example
 
 # <a name="api"></a> API v2.0 stable
 `ES5` and [`Typescript`](http://www.typescriptlang.org/) compatible.
-coded in `Typescript 2`, transpiled to `ES5`.
+coded in `Typescript 3`, transpiled to `ES5`.
 
 secure Pbkdf2OpgpKey instances can either be randomly generated,
 or imported from an armored representation.
@@ -63,7 +64,7 @@ Pbkdf2OpgpKey instances currently expose a single method:
 browse the API's [public type declarations](./src/index.ts#L22-L82).
 
 for a detailed specification of the API,
-[run the unit tests in your browser](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v2.2.0/spec/web/index.html).
+[run the unit tests in your browser](https://cdn.rawgit.com/ZenyWay/pbkdf2-opgp-key/v2.2.1/spec/web/index.html).
 
 # <a name="contributing"></a> CONTRIBUTING
 see the [contribution guidelines](./CONTRIBUTING.md)

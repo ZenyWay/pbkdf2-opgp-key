@@ -13,11 +13,21 @@
  * See the License for the specific language governing permissions and
  * Limitations under the License.
  */
-;
-export function isString (val: any): val is string|String {
-  return typeof (val && val.valueOf()) === 'string'
-}
+//
+declare const Terminal: any
 
-export function isFunction (val: any): val is Function {
-  return typeof val === 'function'
+const term = new Terminal({
+  cursorBlink: true,
+  rows: 24,
+  scrollback: 256,
+  tabStopWidth: 2
+})
+term.open(document.querySelector('#terminal'))
+
+const stringify = JSON.stringify.bind(JSON)
+
+export default function logsync (this: void, label: string) {
+  return function (...args: any[]) {
+    term.writeln([label].concat(args.map(stringify)).join(' '))
+  }
 }

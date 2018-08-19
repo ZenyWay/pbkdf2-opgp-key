@@ -1,5 +1,8 @@
-/*
- * Copyright 2017 Stephane M. Catala
+'use strict' /* eslint-env jasmine */
+/**
+ * Copyright 2018 Stephane M. Catala
+ * @author Stephane M. Catala
+ * @license Apache@2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * Limitations under the License.
  */
-;
+//
 const getPbkdf2OpgpKeyFactory = require('../src').default
 
 let mock: {
@@ -187,9 +190,12 @@ describe('getPbkdf2OpgpKey (creds: Credentials): Promise<Pbkdf2OpgpKey>', () => 
     beforeEach((done) => {
       args = [
         null, undefined, true, 42, 'foo', () => { return 'foo' }, [ 'foo' ],
-        { user: 42, passphrase: 'passphrase'}, { user: 'j.doe@test.org', passphrase: 42 }
+        { user: 42, passphrase: 'passphrase' },
+        { user: 'j.doe@test.org', passphrase: 42 }
       ]
-      Promise.all(args.map((arg: any) => getPbkdf2OpgpKey(arg).catch((err: any) => err)))
+      Promise.all(
+        args.map((arg: any) => getPbkdf2OpgpKey(arg).catch((err: any) => err))
+      )
       .then((errs: any) => errors = errs)
       .then(() => setTimeout(done))
       .catch((err: any) => setTimeout(() => done.fail(err)))
@@ -355,7 +361,7 @@ describe('getPbkdf2OpgpKey (armor: { armor: string, pbkdf2: Pbkdf2sha512DigestSp
   })
 })
 
-describe ('Pbkdf2OpgpKey', () => {
+describe('Pbkdf2OpgpKey', () => {
   let key: any
   beforeEach((done) => {
     mock.opgp.getArmorFromKey.and.returnValue(Promise.resolve('armor'))

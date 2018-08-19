@@ -1,5 +1,7 @@
-/*
- * Copyright 2017 Stephane M. Catala
+/**
+ * Copyright 2018 Stephane M. Catala
+ * @author Stephane M. Catala
+ * @license Apache@2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,11 +13,10 @@
  * See the License for the specific language governing permissions and
  * Limitations under the License.
  */
-;
+//
 import getPbkdf2OpgpKeyFactory from '../../src'
-import getOpgpService, { OpgpService, OpgpProxyKey } from 'opgp-service'
-import debug = require('debug')
-debug.enable('example:*')
+import getOpgpService from 'opgp-service'
+import log from './console'
 
 const opgp = getOpgpService()
 const getPbkdf2OpgpKey = getPbkdf2OpgpKeyFactory(opgp, {
@@ -28,15 +29,15 @@ const getPbkdf2OpgpKey = getPbkdf2OpgpKeyFactory(opgp, {
   }
 })
 
-debug('example:')('generate key...')
+log('example:')('generate key...')
 const key = getPbkdf2OpgpKey('j.doe@example.com', 'secret passphrase')
-key.then(debug('example:key:'))
+key.then(log('example:key:'))
 // { key: OpgpProxyKey, pbkdf2: { salt: "...", ... }, unlock: Function, toArmor: Function, clone: Function }
 
 const armor = key.then(key => key.toArmor())
-armor.then(debug('example:armor:'))
+armor.then(log('example:armor:'))
 // { armor: "-----BEGIN PGP PRIVATE KEY BLOCK----- ...", pbkdf2: { salt: "...", ... } }
 
 armor.then(armor => getPbkdf2OpgpKey(armor, 'secret passphrase'))
-.then(debug('example:from-armor:'))
+.then(log('example:from-armor:'))
 // { key: OpgpProxyKey, pbkdf2: { salt: "...", ... }, unlock: Function, toArmor: Function, clone: Function }
