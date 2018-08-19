@@ -23,7 +23,7 @@
     "test:coverage:serve": "http-server -c-1 -o -p 8888 spec/reports/coverage",
     "pretest:ci": "npm run pretest",
     "test:ci": "npm run test:ci:coverage && remap-istanbul -i spec/reports/coverage/chrom*/coverage.json -o spec/reports/coverage/lcov.info -t lcovonly",
-    "test:ci:coverage": "karma start spec/karma-coverage.conf.js --single-run && remap-istanbul -i spec/reports/coverage/chrom*/coverage.json -o spec/reports/coverage -t html && http-server -c-1 -o -p 8888 spec/reports/coverage",
+    "test:ci:coverage": "karma start spec/karma-coverage.conf.js --single-run",
     "test:ci:coveralls": "cat spec/reports/coverage/lcov.info | sed -e 's/SF:\\.\\.\\//SF:/' | coveralls",
     "test:web:serve": "http-server -c-1 -o -p 6510 spec/web",
     "pretest:web": "rimraf spec/web/*.js",
